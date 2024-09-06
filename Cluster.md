@@ -41,36 +41,6 @@ Ensure that you are authenticated in Azure using the Azure CLI:
 az login
 ```
 
-#### 3. Initialize Terraform
-
-Before deploying, initialize the Terraform workspace to download the required provider plugins:
-
-```bash
-terraform init
-```
-
-#### 4. Modify Variables (Optional)
-
-You can modify the variable values in the `terraform.tfvars` file to suit your needs (e.g., resource group name, AKS cluster name, node count, etc.). This file might look like this:
-
-```hcl
-resource_group_name = "aks-resource-group"
-location            = "East US"
-node_count          = 2
-```
-
-#### 5. Apply Terraform Configuration
-
-Run the following command to deploy the AKS cluster:
-
-```bash
-terraform apply
-```
-
-Once applied, Terraform will provision the Azure resources, including the AKS cluster.
-
----
-
 ### Terraform Files
 
 Below is a more detailed set of Terraform configuration files that are properly structured to create an AKS cluster on Azure, deploy your application using Helm charts, and securely expose the necessary ports. This configuration includes proper commenting and explanations.
@@ -220,10 +190,6 @@ terraform output kube_config > ~/.kube/config
 
 This allows `kubectl` to interact with the newly created AKS cluster.
 
-
-### Deploying Applications Using Helm
-
-After the AKS cluster is deployed, you can use Helm charts to deploy your application components (frontend, backend, MongoDB). Ensure you have the Helm charts ready.
 
 1. **Set up the Kubernetes context** using the kubeconfig file from the Terraform output:
 
