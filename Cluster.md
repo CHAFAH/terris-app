@@ -1,263 +1,214 @@
-To create the Helm charts for deploying the application (frontend, backend, MongoDB) and applying them to your Azure Kubernetes Service (AKS) cluster, you need to follow these steps:
 
-### Steps to Create and Apply Helm Charts
+## AKS Cluster Deployment Using Terraform
 
-1. **Initialize Helm Charts for Each Service**
+This guide provides step-by-step instructions for setting up an Azure Kubernetes Service (AKS) cluster using Terraform. The deployment also includes Helm charts to manage application deployment on the AKS cluster.
 
-Helm charts need to be created for each service (frontend, backend, MongoDB) using Helm's chart creation command:
+### Prerequisites
 
-```bash
-helm create frontend
-helm create backend
-helm create mongodb
-```
+Before proceeding, make sure you have the following tools installed on your local machine:
 
-Each of these commands will create a directory structure for the Helm chart with the default files such as `Chart.yaml`, `values.yaml`, and templates for Kubernetes resources (deployment, service, etc.).
-
-2. **Customize Helm Chart Values**
-
-Next, you will need to modify the `values.yaml` and Kubernetes template files for each service to suit your deployment.
-
----
-
-### MongoDB Helm Chart
-
-#### `values.yaml` for MongoDB
-
-This `values.yaml` file will define the MongoDB configurations. Replace sensitive values with references to secrets.
-
-```yaml
-replicaCount: 1
-
-image:
-  repository: mongo
-  tag: latest
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 27017
-
-mongodb:
-  username: username
-  password: password
-  database: mydatabase
-
-persistence:
-  enabled: true
-  storageClass: default
-  accessModes:
-    - ReadWriteOnce
-  size: 1Gi
-
-resources: {}
-```
-
-#### MongoDB Deployment Template (`templates/deployment.yaml`)
-
-Replace hard-coded values for username and password with references to Kubernetes secrets.
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "mongodb.fullname" . }}
-  labels:
-    {{- include "mongodb.labels" . | nindent 4 }}
-spec:
-  replicas: {{ .Values.replicaCount }}
-  selector:
-    matchLabels:
-      {{- include "mongodb.selectorLabels" . | nindent 6 }}
-  template:
-    metadata:
-      labels:
-        {{- include "mongodb.selectorLabels" . | nindent 8 }}
-    spec:
-      containers:
-        - name: mongodb
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          env:
-            - name: MONGO_INITDB_ROOT_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secret
-                  key: mongodb-username
-            - name: MONGO_INITDB_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secret
-                  key: mongodb-password
-          ports:
-            - containerPort: {{ .Values.service.port }}
-          volumeMounts:
-            - name: mongodb-storage
-              mountPath: /data/db
-      volumes:
-        - name: mongodb-storage
-          persistentVolumeClaim:
-            claimName: {{ include "mongodb.fullname" . }}-pvc
-```
-
-#### Secret for MongoDB Credentials
-
-Create a secret for MongoDB credentials using base64 encoded values.
-
-```bash
-kubectl create secret generic mongodb-secret \
-  --from-literal=mongodb-username=$(echo -n 'username' | base64) \
-  --from-literal=mongodb-password=$(echo -n 'password' | base64)
-```
-
-#### MongoDB Persistent Volume Claim (`templates/pvc.yaml`)
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ include "mongodb.fullname" . }}-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: {{ .Values.persistence.size }}
-```
+1. **Azure Account**:
+   - You can sign up for a free Azure account [here](https://azure.microsoft.com/free/).
+2. **Azure CLI**:
+   - Install the Azure CLI by following the instructions [here](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli).
+3. **Terraform**:
+   - Install Terraform by following the official guide [here](https://learn.hashicorp.com/tutorials/terraform/install-cli).
+4. **kubectl**:
+   - Install Kubernetes CLI (`kubectl`) to manage Kubernetes clusters.
+   - Instructions can be found [here](https://kubernetes.io/docs/tasks/tools/install-kubectl/).
+5. **Helm**:
+   - Install Helm to manage Kubernetes applications.
+   - Instructions can be found [here](https://helm.sh/docs/intro/install/).
 
 ---
 
-### Frontend Helm Chart
+### Steps to Create the AKS Cluster
 
-#### `values.yaml` for Frontend
+#### 1. Clone the Repository
 
-```yaml
-replicaCount: 2
+Clone the GitHub repository containing the Terraform and Helm chart files:
 
-image:
-  repository: origenai/cloud-engineer-test-sample-app-frontend
-  tag: 1.0.0
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 3000
-
-resources: {}
+```bash
+git clone https://github.com/your-repo/aks-terraform.git
+cd aks-terraform
 ```
 
-#### Frontend Deployment Template (`templates/deployment.yaml`)
+#### 2. Configure Azure Authentication
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "frontend.fullname" . }}
-  labels:
-    {{- include "frontend.labels" . | nindent 4 }}
-spec:
-  replicas: {{ .Values.replicaCount }}
-  selector:
-    matchLabels:
-      {{- include "frontend.selectorLabels" . | nindent 6 }}
-  template:
-    metadata:
-      labels:
-        {{- include "frontend.selectorLabels" . | nindent 8 }}
-    spec:
-      containers:
-        - name: frontend
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - containerPort: {{ .Values.service.port }}
+Ensure that you are authenticated in Azure using the Azure CLI:
+
+```bash
+az login
+```
+
+#### 3. Initialize Terraform
+
+Before deploying, initialize the Terraform workspace to download the required provider plugins:
+
+```bash
+terraform init
+```
+
+#### 4. Modify Variables (Optional)
+
+You can modify the variable values in the `terraform.tfvars` file to suit your needs (e.g., resource group name, AKS cluster name, node count, etc.). This file might look like this:
+
+```hcl
+resource_group_name = "aks-resource-group"
+location            = "East US"
+node_count          = 2
+```
+
+#### 5. Apply Terraform Configuration
+
+Run the following command to deploy the AKS cluster:
+
+```bash
+terraform apply
+```
+
+Once applied, Terraform will provision the Azure resources, including the AKS cluster.
+
+---
+
+### Terraform Files
+
+#### `main.tf`
+
+This is the main configuration file for Terraform that defines the AKS cluster and other related Azure resources.
+
+```hcl
+provider "azurerm" {
+  features {}
+}
+
+# Resource group for the AKS cluster
+resource "azurerm_resource_group" "aks" {
+  name     = var.resource_group_name
+  location = var.location
+}
+
+# Azure Kubernetes Service (AKS) cluster
+resource "azurerm_kubernetes_cluster" "aks" {
+  name                = "aks-cluster"
+  location            = azurerm_resource_group.aks.location
+  resource_group_name = azurerm_resource_group.aks.name
+  dns_prefix          = "akscluster"
+
+  default_node_pool {
+    name       = "default"
+    node_count = var.node_count   # The number of nodes in the AKS cluster
+    vm_size    = "Standard_DS2_v2"
+  }
+
+  identity {
+    type = "SystemAssigned"   # Use system-assigned managed identity for the AKS cluster
+  }
+
+  network_profile {
+    network_plugin    = "azure"   # Use Azure CNI for the AKS cluster
+    load_balancer_sku = "standard"
+  }
+}
+
+# Output the kubeconfig to manage the AKS cluster
+output "kube_config" {
+  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
+  sensitive = true
+}
+```
+
+#### `variables.tf`
+
+This file defines the input variables that can be customized when deploying the AKS cluster.
+
+```hcl
+variable "resource_group_name" {
+  description = "The name of the resource group to create."
+  type        = string
+}
+
+variable "location" {
+  description = "The Azure region in which to create resources."
+  type        = string
+  default     = "East US"
+}
+
+variable "node_count" {
+  description = "The number of nodes in the default node pool."
+  type        = number
+  default     = 1
+}
+```
+
+#### `outputs.tf`
+
+This file defines the outputs from the Terraform deployment, such as the `kube_config` to interact with the AKS cluster.
+
+```hcl
+output "kube_config" {
+  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
+  description = "Kubeconfig to interact with the AKS cluster"
+  sensitive = true
+}
+```
+
+#### `terraform.tfvars`
+
+This file contains the values for the variables defined in `variables.tf`. You can customize these values based on your requirements.
+
+```hcl
+resource_group_name = "aks-resource-group"
+location            = "East US"
+node_count          = 2
 ```
 
 ---
 
-### Backend Helm Chart
+### Deploying Applications Using Helm
 
-#### `values.yaml` for Backend
+After the AKS cluster is deployed, you can use Helm charts to deploy your application components (frontend, backend, MongoDB). Ensure you have the Helm charts ready.
 
-```yaml
-replicaCount: 2
-
-image:
-  repository: origenai/cloud-engineer-test-sample-app-backend
-  tag: 1.0.0
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 3001
-
-resources: {}
-```
-
-#### Backend Deployment Template (`templates/deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "backend.fullname" . }}
-  labels:
-    {{- include "backend.labels" . | nindent 4 }}
-spec:
-  replicas: {{ .Values.replicaCount }}
-  selector:
-    matchLabels:
-      {{- include "backend.selectorLabels" . | nindent 6 }}
-  template:
-    metadata:
-      labels:
-        {{- include "backend.selectorLabels" . | nindent 8 }}
-    spec:
-      containers:
-        - name: backend
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - containerPort: {{ .Values.service.port }}
-```
-
----
-
-### Deploy the Helm Charts
-
-1. **Install the MongoDB Helm Chart**:
+1. **Set up the Kubernetes context** using the kubeconfig file from the Terraform output:
 
 ```bash
-helm install mongodb ./mongodb --namespace your-namespace
+az aks get-credentials --resource-group aks-resource-group --name aks-cluster
 ```
 
-2. **Install the Backend Helm Chart**:
+2. **Deploy MongoDB with Helm**:
 
 ```bash
-helm install backend ./backend --namespace your-namespace
+helm install mongodb ./mongodb -f values.yaml --namespace your-namespace
 ```
 
-3. **Install the Frontend Helm Chart**:
+3. **Deploy the Frontend and Backend**:
 
 ```bash
-helm install frontend ./frontend --namespace your-namespace
+helm install frontend ./frontend -f values.yaml --namespace your-namespace
+helm install backend ./backend -f values.yaml --namespace your-namespace
 ```
 
 ---
 
 ### Accessing the Application
 
-Since there is no domain, use a `NodePort` service to expose the application components and access them via the external node IP. You can get the external IP of the nodes using:
+If you use `NodePort` to expose the services, you can find the node's external IP and access the application as follows:
+
+1. Run the following command to get the external IP of the nodes:
 
 ```bash
 kubectl get nodes -o wide
 ```
 
-Then, use the IP and assigned node port for each service (MongoDB, Backend, Frontend) to access the services.
+2. Use the external IP and node port to access the web application in your browser:
+
+```bash
+http://<EXTERNAL_NODE_IP>:<NODE_PORT>
+```
 
 ---
 
 ### Conclusion
 
-This README file provides detailed instructions on how to create and configure Helm charts for MongoDB, Backend, and Frontend services, along with steps to deploy them to AKS using Helm.
-The configurations include best practices such as the use of Kubernetes secrets for sensitive data, and persistent volume claims for storage.
+This guide provides the detailed steps to create an AKS cluster using Terraform, deploy services using Helm, and access the services via `NodePort`. You can modify the values and configurations based on your specific requirements.
+
