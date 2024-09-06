@@ -62,6 +62,46 @@ Each Docker Compose service needs to be transformed into Kubernetes manifests.
 
 #### **MongoDB Deployment and Service**
 
+To add a secret for MongoDB credentials in base64 encoding and mount it to the deployment, follow these steps:
+
+### 1. **Create the Kubernetes Secret with Base64 Encoded Values**
+
+First, base64 encode your MongoDB credentials (username and password). You can use the following commands:
+
+```bash
+echo -n 'your-username' | base64
+echo -n 'your-password' | base64
+```
+
+Let's say your username is `admin` and password is `mypassword`. The base64 encoded values would look like this:
+
+- **Username**: `YWRtaW4=`
+- **Password**: `bXlwYXNzd29yZA==`
+
+Now, create the Kubernetes secret manifest:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-secret
+  namespace: default
+type: Opaque
+data:
+  mongo-username: YWRtaW4=
+  mongo-password: bXlwYXNzd29yZA==
+```
+
+Apply the secret using `kubectl`:
+
+```bash
+kubectl apply -f mongo-secret.yaml
+```
+
+### 2. **Modify the MongoDB Deployment to Use the Secret**
+
+Now, modify the MongoDB deployment to use the secret. You will reference the secret in the environment variables section of the deployment, and mount it to the container.
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -84,9 +124,15 @@ spec:
         - containerPort: 27017
         env:
         - name: MONGO_INITDB_ROOT_USERNAME
-          value: "username"
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: mongo-username
         - name: MONGO_INITDB_ROOT_PASSWORD
-          value: "password"
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: mongo-password
         volumeMounts:
         - name: mongodb-data
           mountPath: /data/db
@@ -94,7 +140,17 @@ spec:
       - name: mongodb-data
         persistentVolumeClaim:
           claimName: mongodb-pvc
+```
 
+### 3. **Apply the Deployment**
+
+Apply the modified deployment using `kubectl`:
+
+```bash
+kubectl apply -f mongo-deployment.yaml
+```
+
+This way, your MongoDB credentials are stored securely in a Kubernetes secret, and the MongoDB deployment uses them without exposing the values in plain text.
 ---
 apiVersion: v1
 kind: Service
