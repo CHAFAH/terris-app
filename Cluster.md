@@ -174,38 +174,6 @@ After the AKS cluster is deployed, you can use Helm charts to deploy your applic
 ```bash
 az aks get-credentials --resource-group aks-resource-group --name aks-cluster
 ```
-
-2. **Deploy MongoDB with Helm**:
-
-```bash
-helm install mongodb ./mongodb -f values.yaml --namespace your-namespace
-```
-
-3. **Deploy the Frontend and Backend**:
-
-```bash
-helm install frontend ./frontend -f values.yaml --namespace your-namespace
-helm install backend ./backend -f values.yaml --namespace your-namespace
-```
-
----
-
-### Accessing the Application
-
-If you use `NodePort` to expose the services, you can find the node's external IP and access the application as follows:
-
-1. Run the following command to get the external IP of the nodes:
-
-```bash
-kubectl get nodes -o wide
-```
-
-2. Use the external IP and node port to access the web application in your browser:
-
-```bash
-http://<EXTERNAL_NODE_IP>:<NODE_PORT>
-```
-
 ---
 
 ### Conclusion
