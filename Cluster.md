@@ -73,97 +73,153 @@ Once applied, Terraform will provision the Azure resources, including the AKS cl
 
 ### Terraform Files
 
-#### `main.tf`
+Below is a more detailed set of Terraform configuration files that are properly structured to create an AKS cluster on Azure, deploy your application using Helm charts, and securely expose the necessary ports. This configuration includes proper commenting and explanations.
 
-This is the main configuration file for Terraform that defines the AKS cluster and other related Azure resources.
+### `main.tf`
 
 ```hcl
+# Main Terraform configuration for deploying AKS Cluster and other resources
+
 provider "azurerm" {
   features {}
 }
 
-# Resource group for the AKS cluster
-resource "azurerm_resource_group" "aks" {
-  name     = var.resource_group_name
-  location = var.location
+# Resource group definition
+resource "azurerm_resource_group" "rg" {
+  name     = "my-aks-resource-group"
+  location = "East US"
 }
 
-# Azure Kubernetes Service (AKS) cluster
+# Virtual network definition
+resource "azurerm_virtual_network" "vnet" {
+  name                = "aks-vnet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Subnet for the AKS cluster
+resource "azurerm_subnet" "aks_subnet" {
+  name                 = "aks-subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+# Network security group for AKS
+resource "azurerm_network_security_group" "nsg" {
+  name                = "aks-nsg"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Allow necessary ports for the application (frontend, backend, mongo)
+resource "azurerm_network_security_rule" "allow_app_ports" {
+  name                        = "AllowAppPorts"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_ranges     = ["3000", "3001", "27017"]
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.nsg.name
+}
+
+# AKS cluster definition
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "aks-cluster"
-  location            = azurerm_resource_group.aks.location
-  resource_group_name = azurerm_resource_group.aks.name
-  dns_prefix          = "akscluster"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  dns_prefix          = "myakscluster"
 
   default_node_pool {
     name       = "default"
-    node_count = var.node_count   # The number of nodes in the AKS cluster
+    node_count = 2
     vm_size    = "Standard_DS2_v2"
+    vnet_subnet_id = azurerm_subnet.aks_subnet.id
   }
 
   identity {
-    type = "SystemAssigned"   # Use system-assigned managed identity for the AKS cluster
-  }
-
-  network_profile {
-    network_plugin    = "azure"   # Use Azure CNI for the AKS cluster
-    load_balancer_sku = "standard"
+    type = "SystemAssigned"
   }
 }
 
-# Output the kubeconfig to manage the AKS cluster
+# Output the AKS credentials for use with kubectl
 output "kube_config" {
-  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
+  value = azurerm_kubernetes_cluster.aks.kube_config_raw
   sensitive = true
 }
+
 ```
 
-#### `variables.tf`
-
-This file defines the input variables that can be customized when deploying the AKS cluster.
+### `variables.tf`
 
 ```hcl
+# Variable file for the AKS deployment
 variable "resource_group_name" {
-  description = "The name of the resource group to create."
   type        = string
+  description = "The name of the resource group"
+  default     = "my-aks-resource-group"
 }
 
 variable "location" {
-  description = "The Azure region in which to create resources."
   type        = string
+  description = "The location of the resources"
   default     = "East US"
 }
-
-variable "node_count" {
-  description = "The number of nodes in the default node pool."
-  type        = number
-  default     = 1
-}
 ```
 
-#### `outputs.tf`
-
-This file defines the outputs from the Terraform deployment, such as the `kube_config` to interact with the AKS cluster.
+### `outputs.tf`
 
 ```hcl
+# Outputs the Kubernetes config for accessing the cluster
 output "kube_config" {
-  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
-  description = "Kubeconfig to interact with the AKS cluster"
-  sensitive = true
+  description = "Kube config file to access the cluster"
+  value       = azurerm_kubernetes_cluster.aks.kube_config_raw
+  sensitive   = true
 }
-```
 
-#### `terraform.tfvars`
-
-This file contains the values for the variables defined in `variables.tf`. You can customize these values based on your requirements.
-
-```hcl
-resource_group_name = "aks-resource-group"
-location            = "East US"
-node_count          = 2
+# Output the AKS cluster name
+output "aks_cluster_name" {
+  description = "The name of the AKS Cluster"
+  value       = azurerm_kubernetes_cluster.aks.name
+}
 ```
 
 ---
+---
+
+### Steps to Apply the Terraform and Helm Charts
+
+#### **Step 1: Initialize Terraform**
+
+```bash
+terraform init
+```
+
+This will initialize Terraform and download the necessary providers.
+
+#### **Step 2: Apply Terraform Configuration**
+
+```bash
+terraform apply
+```
+
+This command will create the AKS cluster, VPC, subnets, and security rules to allow traffic on ports `3000`, `3001`, and `27017`.
+
+#### **Step 3: Get AKS Credentials**
+
+Once the Terraform apply completes, you can get the Kubernetes configuration to interact with the cluster:
+
+```bash
+terraform output kube_config > ~/.kube/config
+```
+
+This allows `kubectl` to interact with the newly created AKS cluster.
+
 
 ### Deploying Applications Using Helm
 
