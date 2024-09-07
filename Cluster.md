@@ -50,7 +50,7 @@ Below is a more detailed set of Terraform configuration files that are properly 
 ```hcl
 # Main Terraform configuration for deploying AKS Cluster and other resources
 
-provider "azurerm" {
+[provider "azurerm" {
   features {}
 }
 
@@ -121,7 +121,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
 output "kube_config" {
   value = azurerm_kubernetes_cluster.aks.kube_config_raw
   sensitive = true
-}
 
 ```
 
